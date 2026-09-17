@@ -38,3 +38,15 @@ Written before the first measured run. Target: developers sending text, conversa
 ## Reproduction
 
 See README for commands. Freeze this protocol before running a new real evaluation; report any later changes, don't tune thresholds after seeing results.
+
+## Runner v2 amendment: experiment integrity
+
+Added before any live evaluation. The original quality thresholds, fixture labels, and offline results above are unchanged.
+
+- Validate every dataset row, including rows outside the selected subset, before a provider request. Require nonempty, unique answer checks and reject conflicting labels or required context absent from the original input.
+- Precompute seeded case order, arm order, blinded answer placement, and optimized messages. Persist the plan and its checksum before execution. Selection and blinding do not depend on provider outcomes.
+- Record each attempt durably before calling the provider. Resume only the same dataset bytes, model, output cap, mode, seed, limit, prices, tokenizer version, provider type, and Python source hash. Cooperating processes lock a local run directory.
+- Never automatically repeat completed, failed, or uncertain attempts. An interrupted attempt without a durable result is uncertain even when it may not have reached the provider. Include it as a failure; report unknown cost as unknown. This is conservative recovery, not a provider-side exactly-once guarantee.
+- Keep automatic task checks separate from blinded human quality scores. Preserve completed reviewer edits on export replay. Reject comparisons across different returned model snapshots.
+- Preflight costs estimate uncached serialized input plus configured output caps for both arms. They are not measured bills or enforceable spending limits. Paid execution requires explicit model selection and credentials.
+- Version 1 experiment directories cannot resume under v2. Existing offline result files remain valid records of their original run. See live-evaluation.md for the recovery procedure.

@@ -15,8 +15,11 @@ Caller -> validated request -> preservation policy -> document deduplication -> 
 - `tokenflow/models.py`: immutable request, document, decision, and result contracts.
 - `tokenflow/core/`: optimizer independent of HTTP and provider SDKs.
 - `tokenflow/llm/`: provider protocol, Responses adapter, and Python `TokenFlow.generate()`.
-- `tokenflow/metrics/`: bounded in-memory metrics without prompts or answers.
-- `tokenflow/evaluation.py`: offline measurements, paired calls, blinded review export, and scoring.
+- `tokenflow/metrics/`: bounded in-memory operational metrics, explicit pricing, and statistics.
+- `tokenflow/datasets.py`: validate all benchmark rows before any provider calls.
+- `tokenflow/experiments.py`: preflight estimates, paired execution, and blinded review export.
+- `tokenflow/run_store.py`: local run locking, durable attempt journal, and resume validation.
+- `tokenflow/evaluation.py`: offline measurements and blinded review scoring.
 - `tokenflow/api/app.py`: M2 local integration preview.
 
 ## Input semantics and quality limits
@@ -46,7 +49,7 @@ Include tenant, permissions, effective instructions, language, model/generation 
 
 ## Data handling
 
-Operational metrics retain only the latest 1,000 records in memory and disappear at process exit. Live evaluation directories intentionally contain model answers and reviewer inputs. They are explicit experiment artifacts, not content-free operational logs. Use consented, redacted data and exclude live runs from version control.
+Operational metrics retain only the latest 1,000 records in memory and disappear at process exit. Live evaluation directories intentionally contain the full planned requests, labels, model answers, and reviewer inputs. They are explicit experiment artifacts, not content-free operational logs. Use consented, redacted data and exclude live runs from version control.
 
 ## Repository conventions
 

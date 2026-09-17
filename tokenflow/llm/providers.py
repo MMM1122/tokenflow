@@ -23,6 +23,8 @@ class OpenAIProvider:
     def __init__(self, model: str, *, max_output_tokens: int = 512, client=None):
         if not model.strip():
             raise ValueError("A model must be supplied explicitly")
+        if type(max_output_tokens) is not int or max_output_tokens < 1:
+            raise ValueError("max_output_tokens must be a positive integer")
         if client is None:
             from openai import OpenAI
 

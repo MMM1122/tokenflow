@@ -1,0 +1,68 @@
+# Live evaluation runbook
+
+This workflow tests the M1 product hypothesis. The checked-in synthetic dataset is a regression suite. Passing it does not establish quality on independent developer traffic.
+
+## Prepare independent cases
+
+Use consented, redacted requests held out from optimizer development. Keep private datasets and runs outside version control. A family identifies one independent conversation or scenario; related variants share a family. Record provenance, consent, selection criteria, and exclusions separately. Do not treat repeated variants as independent samples.
+
+Each line is one JSON object. For example:
+
+```json
+{"id":"example-001","family":"example-conversation","category":"document","split":"holdout","request":{"query":"What is the service timeout?","documents":[{"id":"config","source":"service-guide","content":"The service timeout is 30 seconds.","protected":true}]} ,"required_context":["30 seconds"],"answer_contains":["30"],"answer_forbidden":[]}
+```
+
+This illustrates the schema, not independent evaluation evidence. Supply at least one nonblank answer check. Checks are case-insensitive substring diagnostics and cannot replace review. Required context is case-sensitive and must occur in the original input. Metadata and checks must be nonblank; case IDs must be unique. Optional `variant` is a nonnegative integer. The complete dataset is validated before calls, even when `--limit` selects only a subset.
+
+## Validate without calling a model
+
+Select a model available to your account, then run:
+
+```bash
+export OPENAI_MODEL='your-model-id'
+tokenflow plan-evaluation path/to/private-traces.jsonl \
+  --model "$OPENAI_MODEL" --mode balanced --limit 100 \
+  --seed 42 --max-output-tokens 512 \
+  --output benchmarks/runs/preflight.json
+```
+
+This needs no API key. It reports case selection, blocked budgets, planned calls, estimated input for each arm, and the total configured output cap. The tokenizer may download its encoding table on first use. The report omits raw prompts and labels, but case IDs may still be sensitive.
+
+Optional `--prices path/to/prices.json` takes a JSON object with `model`, `currency`, `as_of`, `input_per_million`, `cached_input_per_million`, and `output_per_million`. Supply current, dated rates explicitly. The price model must match `--model`. The preflight estimate uses uncached input and output caps for both arms. It is not a billing cap or an access check. Without prices, monetary fields stay null.
+
+## Execute and recover
+
+Set `OPENAI_API_KEY` in your shell, then run the same settings with a new directory:
+
+```bash
+tokenflow evaluate-online path/to/private-traces.jsonl \
+  --model "$OPENAI_MODEL" --mode balanced --limit 100 \
+  --seed 42 --max-output-tokens 512 \
+  --output benchmarks/runs/independent-first
+```
+
+Include the same `--prices` option if pricing is required. Each ready case schedules two paid requests. A blocked optimized budget skips both arms and records the pair as failed. The provider uses a 30-second timeout, disables retries and truncation, and requests `store=False`.
+
+After interruption, repeat the exact command with `--resume`. Keep the same checkout, dependency environment, dataset bytes, settings, and output directory. The runner verifies the saved identity and journal before new calls. It does not accept v1 run directories.
+
+- Completed results and recorded provider failures are terminal and skipped.
+- An attempt marker without a durable result becomes `uncertain`. It may already have incurred charges, so resume never sends it again.
+- Resume can send the remaining attempts that were never started. It does not repair failed pairs. Failures remain in the denominator and prevent the quality gate from passing.
+- Changed code, configuration, dataset, pricing, or corrupted journal artifacts stop recovery before new requests. Restore the original files from a trusted copy; do not delete attempt markers to force retries.
+- A separate new run can incur the full cost again. Retain failed runs in the experiment record and document why another run was needed.
+
+The journal uses local OS locks, fsync, and atomic replacement. Cooperating writers cannot run the same directory concurrently, and process exit releases the lock. This does not provide provider-side exactly-once delivery, a distributed lock, or guarantees for network filesystems. A crash between recording intent and sending the request is conservatively classified as uncertain.
+
+## Artifacts and review
+
+`plan.json` holds private requests, labels, optimized messages, seeded ordering, and the experiment identity. `manifest.json` records its checksum. `attempts/` contains intent markers and checksummed result records. `calls.jsonl` is a regenerated view of resolved attempts; `online.json` is written after the selected attempts finish. `call_count` counts durably started attempts, including uncertain ones, and may exceed actual provider receipt.
+
+Do not edit the plan, manifest, or attempt journal. Only edit review score/violation fields in `blind-review.jsonl`. Give independent reviewers that file alone; keep `review-key.jsonl`, the plan, and execution records hidden. Resuming a completed run preserves review edits when its original pair content still matches.
+
+Use the four-dimension rubric in README and then run:
+
+```bash
+tokenflow score-reviews benchmarks/runs/independent-first
+```
+
+Every pair must succeed and receive a complete review. Returned model snapshots must agree. Token/keyword checks do not substitute for quality ratings. Review provenance, subgroup regressions, actual cached/output usage, and latency against the unchanged predeclared protocol before deciding whether to progress to production infrastructure. Runs with failed or uncertain calls cannot claim a complete experimental cost or cost/latency reduction.

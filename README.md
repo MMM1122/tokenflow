@@ -65,14 +65,18 @@ Set `OPENAI_API_KEY` in the shell without adding the key to source control. Expl
 
 ```bash
 export OPENAI_MODEL='your-model-id'
+tokenflow plan-evaluation benchmarks/synthetic-v1.jsonl \
+  --model "$OPENAI_MODEL" --limit 100 --mode balanced
 tokenflow evaluate-online benchmarks/synthetic-v1.jsonl \
   --model "$OPENAI_MODEL" --limit 100 --mode balanced \
   --output benchmarks/runs/live-first
 ```
 
-This command can make 200 paid calls. It disables automatic retries, sets a 512-token output cap, uses a 30-second provider timeout, and sets `store=False`. Baseline and optimized order is randomized with a fixed seed. Each call is immediately written to `calls.jsonl`; failed and incomplete responses remain in the denominator. Interrupted runs preserve completed call records; automatic resume is not implemented, so use a new output directory for another run.
+The planner validates every dataset row and estimates both arms without an API key or model calls. Its optional price estimate is not a billing cap or confirmation of model access. Live evaluation can make 200 paid calls. It disables automatic retries, defaults to `--max-output-tokens 512` and `--seed 42`, uses a 30-second provider timeout, and sets `store=False`. Execution order and blinded answer placement are fixed before the first call.
 
-Optional `--prices path/to/prices.json` accepts `input_per_million`, `cached_input_per_million`, `output_per_million`, `currency`, `as_of`, and `model`. Without prices, monetary fields stay null. Failed calls may still incur charges, so runs with failures do not claim a complete experimental cost. Snapshot changes, cached-input discounts, and output length affect comparisons.
+To resume an interrupted run, repeat the same command and add `--resume`. The runner locks the local directory, checks dataset/configuration/code hashes, and skips completed attempts. Attempts with no durable result become `uncertain` and are never automatically repeated, because the provider may already have charged them. Failures remain in the denominator. See the [live evaluation runbook](docs/live-evaluation.md) for data preparation, artifacts, recovery, and review.
+
+Optional `--prices path/to/prices.json` accepts `input_per_million`, `cached_input_per_million`, `output_per_million`, `currency`, `as_of`, and `model`. Without prices, monetary fields stay null. Failed calls may still incur charges, so runs with failures do not claim a complete experimental cost. Cached-input discounts and output length affect comparisons. If successful responses identify different model snapshots, the runner withholds cost/latency comparisons and rejects quality scoring.
 
 Give reviewers `blind-review.jsonl`, but keep `review-key.jsonl` hidden. Each side needs four integer scores from 0 to 4:
 

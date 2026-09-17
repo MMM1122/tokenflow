@@ -3,7 +3,6 @@
 import hashlib
 import importlib.metadata
 import json
-import math
 import platform
 import random
 import statistics
@@ -12,57 +11,15 @@ from datetime import UTC, datetime
 from pathlib import Path
 from time import perf_counter
 
-from pydantic import Field
-
 from tokenflow.core.optimizer import Optimizer
 from tokenflow.core.tokenizer import render_messages
-from tokenflow.llm.providers import Provider, ProviderResult
-from tokenflow.models import BudgetExceeded, OptimizationRequest, StrictModel
-
-
-class Prices(StrictModel):
-    """Explicit per-million-token prices; never infer current prices from model names."""
-
-    input_per_million: float = Field(ge=0, allow_inf_nan=False)
-    cached_input_per_million: float = Field(ge=0, allow_inf_nan=False)
-    output_per_million: float = Field(ge=0, allow_inf_nan=False)
-    currency: str = Field(min_length=1)
-    as_of: str = Field(min_length=1)
-    model: str = Field(min_length=1)
-
-
-def cost(result: ProviderResult, prices: Prices | None) -> float | None:
-    if prices is None:
-        return None
-    if result.cached_input_tokens > result.input_tokens:
-        raise ValueError("Provider cached tokens cannot exceed input tokens")
-    return (
-        (result.input_tokens - result.cached_input_tokens) * prices.input_per_million
-        + result.cached_input_tokens * prices.cached_input_per_million
-        + result.output_tokens * prices.output_per_million
-    ) / 1_000_000
-
-
-def percentile(values: list[float], q: float) -> float | None:
-    if not values:
-        return None
-    ordered = sorted(values)
-    position = (len(ordered) - 1) * q
-    low, high = math.floor(position), math.ceil(position)
-    return ordered[low] + (ordered[high] - ordered[low]) * (position - low)
-
-
-def load_cases(path: Path) -> list[dict]:
-    cases = [json.loads(line) for line in path.read_text().splitlines() if line.strip()]
-    ids = [c["id"] for c in cases]
-    if not cases or len(set(ids)) != len(ids):
-        raise ValueError("Dataset must be nonempty with unique case ids")
-    for case in cases:
-        OptimizationRequest.model_validate(case["request"])
-        for key in ("family", "category", "split", "required_context", "answer_contains"):
-            if key not in case:
-                raise ValueError(f"Missing fixture field: {key}")
-    return cases
+from tokenflow.datasets import load_cases as load_cases
+from tokenflow.experiments import answer_check as answer_check
+from tokenflow.experiments import run_online as run_online
+from tokenflow.metrics.pricing import Prices as Prices
+from tokenflow.metrics.pricing import cost as cost
+from tokenflow.metrics.statistics import percentile
+from tokenflow.models import BudgetExceeded, OptimizationRequest
 
 
 def _aggregate(rows: list[dict]) -> dict:
@@ -252,169 +209,6 @@ def write_offline_report(report: dict, output: Path):
     (output / "SUMMARY.md").write_text("\n".join(lines) + "\n")
 
 
-def answer_check(answer: str, case: dict) -> float:
-    text = answer.casefold()
-    if any(term.casefold() in text for term in case.get("answer_forbidden", [])):
-        return 0.0
-    checks = case["answer_contains"]
-    if not checks:
-        raise ValueError("Online evaluation requires explicit answer checks")
-    return sum(term.casefold() in text for term in checks) / len(checks)
-
-
-def run_online(
-    dataset: Path,
-    output: Path,
-    provider: Provider,
-    *,
-    mode: str = "balanced",
-    limit: int = 100,
-    seed: int = 42,
-    prices: Prices | None = None,
-) -> dict:
-    """Explicitly paid path. Save each completed call before starting the next."""
-    if limit < 1:
-        raise ValueError("Online case limit must be positive")
-    cases = load_cases(dataset)
-    rng = random.Random(seed)
-    rng.shuffle(cases)
-    cases = cases[:limit]
-    if not cases:
-        raise ValueError("Online case limit must be positive")
-    if output.exists() and any(output.iterdir()):
-        raise ValueError("Use an empty output directory to preserve previous paid-run evidence")
-    output.mkdir(parents=True, exist_ok=True)
-    engine = Optimizer()
-    rows, reviews, mapping = [], [], []
-    provider_calls = 0
-    manifest = {
-        "dataset_sha256": hashlib.sha256(dataset.read_bytes()).hexdigest(),
-        "mode": mode,
-        "seed": seed,
-        "provider": type(provider).__name__,
-        "requested_model": getattr(provider, "model", None),
-        "max_output_tokens": getattr(provider, "max_output_tokens", None),
-        "encoding": engine.tokenizer.name,
-        "cases": len(cases),
-        "generated_at": datetime.now(UTC).isoformat(),
-        "prices": prices.model_dump() if prices else None,
-    }
-    (output / "manifest.json").write_text(json.dumps(manifest, indent=2))
-    with (output / "calls.jsonl").open("w") as calls:
-        for case in cases:
-            request = OptimizationRequest.model_validate({**case["request"], "mode": mode})
-            try:
-                optimized = engine.optimize(request)
-            except BudgetExceeded:
-                for arm in ("baseline", "optimized"):
-                    row = {
-                        "id": case["id"],
-                        "family": case["family"],
-                        "arm": arm,
-                        "status": "budget_exceeded",
-                        "answer_check_score": 0.0,
-                    }
-                    rows.append(row)
-                    calls.write(json.dumps(row) + "\n")
-                calls.flush()
-                continue
-            arms = ["baseline", "optimized"]
-            rng.shuffle(arms)
-            pair = {}
-            for arm in arms:
-                row = {"id": case["id"], "family": case["family"], "arm": arm}
-                messages = render_messages(request) if arm == "baseline" else optimized.messages
-                try:
-                    provider_calls += 1
-                    response = provider.generate(messages)
-                    row.update(
-                        status="ok",
-                        **response.model_dump(),
-                        answer_check_score=answer_check(response.text, case),
-                        priced_cost=cost(response, prices),
-                        total_latency_ms=response.latency_ms
-                        + (optimized.metrics.optimization_ms if arm == "optimized" else 0),
-                    )
-                    pair[arm] = response.text
-                except Exception as exc:
-                    row.update(
-                        status="provider_error",
-                        error_type=type(exc).__name__,
-                        answer_check_score=0.0,
-                    )
-                rows.append(row)
-                calls.write(json.dumps(row, ensure_ascii=False) + "\n")
-                calls.flush()
-            if len(pair) == 2:
-                left = rng.choice(["baseline", "optimized"])
-                right = "optimized" if left == "baseline" else "baseline"
-                reviews.append(
-                    {
-                        "id": case["id"],
-                        "family": case["family"],
-                        "request": case["request"],
-                        "left_answer": pair[left],
-                        "right_answer": pair[right],
-                        "left_scores": None,
-                        "right_scores": None,
-                        "left_critical_violation": None,
-                        "right_critical_violation": None,
-                    }
-                )
-                mapping.append({"id": case["id"], "left": left, "right": right})
-    summary = {
-        **manifest,
-        "call_count": provider_calls,
-        "evaluation_arm_records": len(rows),
-        "failed_calls": sum(r["status"] != "ok" for r in rows),
-        "answer_quality_retention": None,
-        "product_gate": "pending_blinded_review_and_independent_dataset",
-    }
-    for arm in ("baseline", "optimized"):
-        selected = [r for r in rows if r["arm"] == arm]
-        good = [r for r in selected if r["status"] == "ok"]
-        summary[arm] = {
-            "answer_check_score": statistics.mean(r["answer_check_score"] for r in selected),
-            "successful_calls": len(good),
-            "input_tokens_successful_calls": sum(r["input_tokens"] for r in good),
-            "output_tokens_successful_calls": sum(r["output_tokens"] for r in good),
-            "recorded_successful_call_cost": sum(r["priced_cost"] for r in good)
-            if prices
-            else None,
-            "mean_total_latency_ms_successful_calls": statistics.mean(
-                r["total_latency_ms"] for r in good
-            )
-            if good
-            else None,
-            "p95_total_latency_ms_successful_calls": percentile(
-                [r["total_latency_ms"] for r in good], 0.95
-            ),
-        }
-    all_ok = summary["failed_calls"] == 0
-    base_cost = summary["baseline"]["recorded_successful_call_cost"]
-    opt_cost = summary["optimized"]["recorded_successful_call_cost"]
-    summary["cost_reduction"] = (
-        (base_cost - opt_cost) / base_cost
-        if (all_ok and base_cost is not None and base_cost > 0)
-        else None
-    )
-    summary["paired_experiment_cost"] = base_cost + opt_cost if all_ok and prices else None
-    summary["latency_change_ms"] = (
-        (
-            summary["optimized"]["mean_total_latency_ms_successful_calls"]
-            - summary["baseline"]["mean_total_latency_ms_successful_calls"]
-        )
-        if all_ok
-        else None
-    )
-    for name, records in (("blind-review.jsonl", reviews), ("review-key.jsonl", mapping)):
-        (output / name).write_text(
-            "".join(json.dumps(r, ensure_ascii=False) + "\n" for r in records)
-        )
-    (output / "online.json").write_text(json.dumps(summary, indent=2) + "\n")
-    return summary
-
-
 def evaluate_reviews(run: Path) -> dict:
     """Consume completed blinded rubrics; leave generalization gate pending."""
     dimensions = {"correctness", "completeness", "instruction_adherence", "grounding"}
@@ -427,12 +221,22 @@ def evaluate_reviews(run: Path) -> dict:
         or len(keys) != summary["cases"]
         or len({r["id"] for r in reviews}) != len(reviews)
         or summary["failed_calls"]
+        or len(key_rows) != len(keys)
+        or set(keys) != {review["id"] for review in reviews}
     ):
         raise ValueError("All pairs must succeed and receive one complete review")
+    if summary.get("model_consistent") is False:
+        raise ValueError("Cannot compare quality across different response model snapshots")
     families = defaultdict(list)
     baseline_by_family, optimized_by_family = defaultdict(list), defaultdict(list)
     critical = 0
     for review in reviews:
+        key = keys[review["id"]]
+        if key.get("family") != review["family"] or {key.get("left"), key.get("right")} != {
+            "baseline",
+            "optimized",
+        }:
+            raise ValueError("Review family or arm mapping differs from the original run")
         scores = {}
         for side in ("left", "right"):
             rubric = review[f"{side}_scores"]

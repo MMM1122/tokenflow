@@ -4,11 +4,15 @@ M1 offline engineering and an M2 local integration preview are implemented. The 
 
 ## Verified locally
 
-- 44 pytest tests pass; Ruff lint and formatting checks pass.
+- 69 pytest tests pass; Ruff lint and formatting checks pass.
 - Editable package installation and the installed `tokenflow` CLI work.
 - A real uvicorn loopback smoke test returned HTTP 200 from health and optimization endpoints. The example input decreased from 121 to 103 estimated tokens, retaining one of two identical documents.
 - The smoke-test server was shut down afterward. No real model calls were made.
 - The offline benchmark covers 100 synthetic cases from 20 families, measured three times per mode and case. See benchmarks/results/m1-offline/ for the latest complete results.
+
+## Evaluation reliability update
+
+The no-call preflight validates the entire dataset and estimates both evaluation arms with explicit optional prices. The v2 runner records intent before each provider request and saves checksummed results atomically. Resume skips completed calls, treats unfinished attempts as uncertain without retrying, rejects changed experiment identities, and retains reviewer edits. OS locking prevents cooperating local writers from executing the same run concurrently. Tests cover interruptions, lost result writes, process exit, corrupted artifacts, changed settings, and model snapshot drift. These are reliability checks using test doubles; no new live quality or billing evidence is claimed.
 
 ## Interpretation
 
