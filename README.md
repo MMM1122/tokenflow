@@ -1,5 +1,7 @@
 # TokenFlow
 
+[Repository](https://github.com/MMM1122/tokenflow) | [Issues](https://github.com/MMM1122/tokenflow/issues) | [CI](https://github.com/MMM1122/tokenflow/actions/workflows/ci.yml)
+
 Reduce redundant LLM context automatically and measure the tradeoffs in quality, cost, and latency.
 
 **Status: M1 offline optimizer and evaluation tooling, plus an M2 local gateway preview.** Optimization, tests, and offline benchmarks require no API key. Live answer quality and billing savings remain unvalidated.

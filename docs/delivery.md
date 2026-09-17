@@ -21,7 +21,7 @@ Lossy processing added only about 3.35 percentage points of mean reduction on th
 ## Remaining work and reasons
 
 - Real quality, billing, and model latency: no configured OPENAI_API_KEY/OPENAI_MODEL and no independent developer traces. Paired calls, failure records, usage/cost computation, blinded review, and scoring are implemented.
-- Repository publication and issue synchronization are the current follow-up task. See docs/issues/INDEX.md for task acceptance criteria and synchronized status.
+- Published the private [MMM1122/tokenflow](https://github.com/MMM1122/tokenflow) repository and synchronized ten English issues: seven closed, three open. A pinned GitHub Actions workflow verifies Python 3.11 and 3.12. See docs/issues/INDEX.md for acceptance criteria and status.
 - History compression, semantic embeddings, and model-generated summaries remain deferred until a real failure set covers references, implicit constraints, cross-language queries, and multi-hop facts.
 - Docker, PostgreSQL, cache, and routing remain behind the quality and demand gates. A local HTTP interface does not establish a need for production infrastructure.
 
