@@ -22,8 +22,8 @@ jobs:
       matrix:
         python: ["3.11", "3.12"]
     env:
-      TIKTOKEN_CACHE_DIR: ${{ runner.temp }}/tiktoken-cache
-      TOKENFLOW_REPORT_DIR: ${{ runner.temp }}/tokenflow-benchmark
+      TIKTOKEN_CACHE_DIR: ${{ github.workspace }}/.tiktoken-cache
+      TOKENFLOW_REPORT_DIR: ${{ github.workspace }}/benchmarks/runs/ci
     steps:
       - name: Check out source
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
