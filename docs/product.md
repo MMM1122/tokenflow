@@ -17,6 +17,7 @@ Caller -> validated request -> preservation policy -> document deduplication -> 
 - `tokenflow/llm/`: provider protocol, Responses adapter, and Python `TokenFlow.generate()`.
 - `tokenflow/metrics/`: bounded in-memory operational metrics, explicit pricing, and statistics.
 - `tokenflow/datasets.py`: validate all benchmark rows before any provider calls.
+- `tokenflow/dataset_audit.py`: inspect exact input duplication and declared dataset isolation.
 - `tokenflow/experiments.py`: preflight estimates, paired execution, and blinded review export.
 - `tokenflow/run_store.py`: local run locking, durable attempt journal, and resume validation.
 - `tokenflow/evaluation.py`: offline measurements and blinded review scoring.

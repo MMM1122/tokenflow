@@ -1,0 +1,98 @@
+{
+  "format_version": 1,
+  "kind": "dataset_readiness_audit",
+  "dataset_sha256": "0734f0258639233f4ce0bda29df89ba289d49d7707a5961779f9735c17720b13",
+  "cases": 100,
+  "declared_families": 20,
+  "unique_baseline_inputs": 92,
+  "cases_by_category": {
+    "adversarial": 5,
+    "chinese": 10,
+    "coding": 10,
+    "constraint": 15,
+    "control": 10,
+    "document": 25,
+    "multi_turn": 15,
+    "qa": 10
+  },
+  "cases_by_split": {
+    "dev": 60,
+    "holdout": 40
+  },
+  "family_sizes": {
+    "budget": 5,
+    "cache": 5,
+    "chinese": 5,
+    "citation": 5,
+    "code": 5,
+    "correction": 5,
+    "cross_language": 5,
+    "docker": 5,
+    "fastapi": 5,
+    "injection": 5,
+    "json": 5,
+    "long_history": 5,
+    "multi_hop": 5,
+    "negation": 5,
+    "no_documents": 5,
+    "no_overlap": 5,
+    "no_redundancy": 5,
+    "numeric_change": 5,
+    "queue": 5,
+    "reference": 5
+  },
+  "duplicate_baseline_groups": [
+    {
+      "case_ids": [
+        "no_documents-0",
+        "no_documents-1",
+        "no_documents-2",
+        "no_documents-3",
+        "no_documents-4"
+      ],
+      "families": [
+        "no_documents"
+      ],
+      "splits": [
+        "holdout"
+      ]
+    },
+    {
+      "case_ids": [
+        "no_redundancy-0",
+        "no_redundancy-1",
+        "no_redundancy-2",
+        "no_redundancy-3",
+        "no_redundancy-4"
+      ],
+      "families": [
+        "no_redundancy"
+      ],
+      "splits": [
+        "holdout"
+      ]
+    }
+  ],
+  "cross_family_duplicate_groups": [],
+  "cross_split_duplicate_groups": [],
+  "families_spanning_splits": [],
+  "conflicting_answer_check_groups": [],
+  "cases_without_required_context_checks": [
+    "no_documents-0",
+    "no_documents-1",
+    "no_documents-2",
+    "no_documents-3",
+    "no_documents-4"
+  ],
+  "readiness_findings": [],
+  "mechanical_checks_passed": true,
+  "independent_provenance_verified": null,
+  "product_gate": "not_evaluated",
+  "limitations": [
+    "Declared families are labels, not proof of independent conversations.",
+    "Exact matching cannot detect paraphrases, shared origins, or all split leakage.",
+    "Consent, redaction, provenance, and holdout integrity require human review.",
+    "Reports omit request text but retain potentially sensitive case and family IDs.",
+    "No model calls were made; passing these checks does not establish product quality."
+  ]
+}

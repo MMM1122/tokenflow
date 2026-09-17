@@ -52,10 +52,11 @@ The budget applies to a BPE estimate of the complete serialized input, excludes 
 
 ```bash
 python benchmarks/build_fixtures.py
+tokenflow audit-dataset benchmarks/synthetic-v1.jsonl
 tokenflow benchmark benchmarks/synthetic-v1.jsonl --output benchmarks/runs/offline
 ```
 
-The suite contains 100 synthetic cases from 20 scenario families with five context-size variants each, not 100 independent real conversations. It covers question answering, code, documents, multilingual input, corrections, constraints, long histories, and zero-redundancy controls. Multilingual test payloads use Unicode escapes in source and fixture files; all project prose is English.
+The suite contains 100 synthetic cases from 20 scenario families with five context-size variants each, not 100 independent real conversations. It covers question answering, code, documents, multilingual input, corrections, constraints, long histories, and zero-redundancy controls. Multilingual test payloads use Unicode escapes in source and fixture files; all project prose is English. The [dataset audit](benchmarks/results/m1-offline/dataset-audit.json) identifies 92 distinct baseline inputs: each of the two no-document/no-redundancy control families repeats one input five times. No exact cross-family or cross-split input duplicates were found. These controls remain in the original suite; they are not independent observations.
 
 See the [measured results](benchmarks/results/m1-offline/SUMMARY.md), [per-case data](benchmarks/results/m1-offline/offline.json), and [predeclared protocol](docs/benchmark-protocol.md). High duplicate density favors deduplication. Required-fact retention is not answer quality. Offline quality, cost, and model-latency fields remain `null`.
 
@@ -90,7 +91,7 @@ This illustrates the schema, not measured grades. Use 0 for unusable, 1 for majo
 tokenflow score-reviews benchmarks/runs/live-first
 ```
 
-The evaluator weights scenario families equally, bootstraps paired family-level differences, and checks critical violations. Passing a synthetic sample still does not satisfy the independent real-data product gate.
+The evaluator verifies the answers, original requests, blinding key, and summary against the saved plan and checksummed journal before scoring. Editing pair content or the answer mapping causes an error; edit only scores and violation fields. The evaluator weights scenario families equally, bootstraps paired family-level differences, and checks critical violations. Its output records dataset, plan, and review fingerprints. Passing a synthetic sample still does not satisfy the independent real-data product gate.
 
 ## Local HTTP preview
 

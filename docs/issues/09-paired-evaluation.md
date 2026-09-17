@@ -11,6 +11,7 @@ Validate or falsify actual model quality and cost benefits.
 - [x] Validate the complete dataset and expose a no-call preflight with optional explicit cost estimates.
 - [x] Resume local experiments using a durable journal without retrying uncertain or failed attempts.
 - [x] Reject changed run identities, corrupt journals, concurrent writers, and model snapshot drift.
+- [x] Bind reviewed answers and blinding mappings to the original plan and checksummed journal before scoring.
 - [ ] Configure real model credentials and execute paired live evaluation.
 - [ ] Complete independent blinded review and assess cost and latency on real traces.
 

@@ -4,6 +4,7 @@ import os
 from pathlib import Path
 
 from tokenflow.core.optimizer import Optimizer
+from tokenflow.dataset_audit import audit_dataset
 from tokenflow.evaluation import (
     Prices,
     evaluate_reviews,
@@ -21,6 +22,9 @@ def main():
     sub = parser.add_subparsers(dest="command", required=True)
     optimize = sub.add_parser("optimize", help="Optimize one JSON request without any LLM call")
     optimize.add_argument("request", type=Path)
+    audit = sub.add_parser("audit-dataset", help="Inspect benchmark isolation without model calls")
+    audit.add_argument("dataset", type=Path)
+    audit.add_argument("--output", type=Path)
     benchmark = sub.add_parser("benchmark", help="Run offline synthetic evaluation")
     benchmark.add_argument("dataset", type=Path)
     benchmark.add_argument("--output", type=Path, required=True)
@@ -51,6 +55,12 @@ def main():
         if args.command == "optimize":
             request = OptimizationRequest.model_validate_json(args.request.read_text())
             print(Optimizer().optimize(request).model_dump_json(indent=2))
+        elif args.command == "audit-dataset":
+            report = audit_dataset(args.dataset)
+            if args.output:
+                args.output.parent.mkdir(parents=True, exist_ok=True)
+                atomic_json(args.output, report)
+            print(json.dumps(report, indent=2))
         elif args.command == "benchmark":
             report = run_offline(args.dataset, args.repeats)
             write_offline_report(report, args.output)
@@ -93,7 +103,7 @@ def main():
             print(json.dumps(summary, indent=2))
         elif args.command == "score-reviews":
             result = evaluate_reviews(args.run)
-            (args.run / "quality-review.json").write_text(json.dumps(result, indent=2) + "\n")
+            atomic_json(args.run / "quality-review.json", result)
             print(json.dumps(result, indent=2))
     except (BudgetExceeded, ValueError, OSError) as exc:
         parser.error(str(exc))

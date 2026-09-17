@@ -15,11 +15,13 @@ from tokenflow.core.optimizer import Optimizer
 from tokenflow.core.tokenizer import render_messages
 from tokenflow.datasets import load_cases as load_cases
 from tokenflow.experiments import answer_check as answer_check
+from tokenflow.experiments import load_review_evidence
 from tokenflow.experiments import run_online as run_online
 from tokenflow.metrics.pricing import Prices as Prices
 from tokenflow.metrics.pricing import cost as cost
 from tokenflow.metrics.statistics import percentile
 from tokenflow.models import BudgetExceeded, OptimizationRequest
+from tokenflow.run_store import digest, run_lock
 
 
 def _aggregate(rows: list[dict]) -> dict:
@@ -211,8 +213,18 @@ def write_offline_report(report: dict, output: Path):
 
 def evaluate_reviews(run: Path) -> dict:
     """Consume completed blinded rubrics; leave generalization gate pending."""
+    if not run.is_dir():
+        raise ValueError("Review run directory does not exist")
+    with run_lock(run):
+        try:
+            return _evaluate_reviews(run)
+        except (KeyError, TypeError, json.JSONDecodeError):
+            raise ValueError("Invalid review artifacts; preserve original pair content") from None
+
+
+def _evaluate_reviews(run: Path) -> dict:
     dimensions = {"correctness", "completeness", "instruction_adherence", "grounding"}
-    summary = json.loads((run / "online.json").read_text())
+    summary, original_reviews, original_keys = load_review_evidence(run)
     reviews = [json.loads(line) for line in (run / "blind-review.jsonl").read_text().splitlines()]
     key_rows = [json.loads(line) for line in (run / "review-key.jsonl").read_text().splitlines()]
     keys = {row["id"]: row for row in key_rows}
@@ -227,6 +239,15 @@ def evaluate_reviews(run: Path) -> dict:
         raise ValueError("All pairs must succeed and receive one complete review")
     if summary.get("model_consistent") is False:
         raise ValueError("Cannot compare quality across different response model snapshots")
+    if keys != {row["id"]: row for row in original_keys}:
+        raise ValueError("Review arm mapping differs from the recorded experiment")
+    originals = {row["id"]: row for row in original_reviews}
+    for review in reviews:
+        if any(
+            review.get(field) != originals[review["id"]][field]
+            for field in ("family", "request", "left_answer", "right_answer")
+        ):
+            raise ValueError("Reviewed content differs from the recorded experiment")
     families = defaultdict(list)
     baseline_by_family, optimized_by_family = defaultdict(list), defaultdict(list)
     critical = 0
@@ -256,16 +277,23 @@ def evaluate_reviews(run: Path) -> dict:
         optimized_by_family[review["family"]].append(scores["optimized"])
         families[review["family"]].append(scores["optimized"] - scores["baseline"])
     # Equal family weights avoid treating correlated context variants as independent.
-    differences = [statistics.mean(values) for values in families.values()]
+    differences = [statistics.mean(families[family]) for family in sorted(families)]
     if len(differences) < 2:
         raise ValueError("Need at least two independent families for a confidence interval")
     rng = random.Random(42)
     boot = [statistics.mean(rng.choices(differences, k=len(differences))) for _ in range(2000)]
-    base_mean = statistics.mean(statistics.mean(v) for v in baseline_by_family.values())
-    opt_mean = statistics.mean(statistics.mean(v) for v in optimized_by_family.values())
+    base_mean = statistics.mean(
+        statistics.mean(baseline_by_family[family]) for family in sorted(families)
+    )
+    opt_mean = statistics.mean(
+        statistics.mean(optimized_by_family[family]) for family in sorted(families)
+    )
     retention = opt_mean / base_mean if base_mean else None
     interval = [percentile(boot, 0.025), percentile(boot, 0.975)]
     return {
+        "plan_sha256": summary["plan_sha256"],
+        "dataset_sha256": summary["dataset_sha256"],
+        "review_records_sha256": digest(sorted(reviews, key=lambda row: row["id"])),
         "reviewed_pairs": len(reviews),
         "families": len(differences),
         "quality_weighting": "equal_family",

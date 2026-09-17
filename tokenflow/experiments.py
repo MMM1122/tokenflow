@@ -205,7 +205,7 @@ def _summarize(manifest: dict, rows: list[dict]) -> dict:
     return summary
 
 
-def _export_reviews(output: Path, cases: list[dict], rows: dict):
+def review_records(cases: list[dict], rows: dict) -> tuple[list[dict], list[dict]]:
     reviews, keys = [], []
     for case in cases:
         if any(rows[(case["id"], arm)]["status"] != "ok" for arm in case["arms"]):
@@ -226,6 +226,37 @@ def _export_reviews(output: Path, cases: list[dict], rows: dict):
             }
         )
         keys.append({"id": case["id"], "family": case["family"], "left": left, "right": right})
+    return reviews, keys
+
+
+def load_review_evidence(output: Path) -> tuple[dict, list[dict], list[dict]]:
+    """Bind review content to the journal; the caller holds the directory lock."""
+    manifest = read_json(output / "manifest.json")
+    plan = read_json(output / "plan.json")
+    if (
+        not isinstance(manifest, dict)
+        or not isinstance(plan, dict)
+        or manifest.get("format_version") != 2
+        or not isinstance(plan.get("identity"), dict)
+        or not isinstance(plan.get("cases"), list)
+        or manifest.get("plan_sha256") != digest(plan)
+        or any(manifest.get(key) != value for key, value in plan["identity"].items())
+        or manifest.get("cases") != len(plan["cases"])
+    ):
+        raise ValueError("Review plan or manifest is invalid")
+    rows = RunStore(output).validate(plan["cases"])
+    if len(rows) != len(plan["cases"]) * 2 or any(r["status"] != "ok" for r in rows.values()):
+        raise ValueError("All pairs must succeed and receive one complete review")
+    ordered = [rows[(case["id"], arm)] for case in plan["cases"] for arm in case["arms"]]
+    summary = _summarize(manifest, ordered)
+    if read_json(output / "online.json") != summary:
+        raise ValueError("Review summary differs from the recorded experiment")
+    reviews, keys = review_records(plan["cases"], rows)
+    return summary, reviews, keys
+
+
+def _export_reviews(output: Path, cases: list[dict], rows: dict):
+    reviews, keys = review_records(cases, rows)
     for name, records in (("blind-review.jsonl", reviews), ("review-key.jsonl", keys)):
         if name == "blind-review.jsonl" and (output / name).exists():
             # Preserve reviewer edits after interrupted export/finalization.

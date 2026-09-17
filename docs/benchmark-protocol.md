@@ -50,3 +50,9 @@ Added before any live evaluation. The original quality thresholds, fixture label
 - Keep automatic task checks separate from blinded human quality scores. Preserve completed reviewer edits on export replay. Reject comparisons across different returned model snapshots.
 - Preflight costs estimate uncached serialized input plus configured output caps for both arms. They are not measured bills or enforceable spending limits. Paid execution requires explicit model selection and credentials.
 - Version 1 experiment directories cannot resume under v2. Existing offline result files remain valid records of their original run. See live-evaluation.md for the recovery procedure.
+
+## Dataset audit and review integrity amendment
+
+Added before any live evaluation; acceptance thresholds remain unchanged. A mechanical dataset audit now distinguishes case count, declared family count, and distinct rendered baseline inputs. The original synthetic suite contains 92 distinct inputs: two control families each contain five identical variants. Preserve and disclose these controls; do not count them as independent evidence. No exact duplicate inputs span families or splits in this fixture. Exact matching cannot prove independence or detect all shared origins.
+
+Before scoring, verify the immutable reviewed content and blinded mapping against the persisted plan and checksummed attempt records, and recompute the run summary. Reject changed answers, requests, family assignments, keys, or mismatched summaries. Sort families before seeded bootstrap so row reordering does not change the calculation. Record dataset, plan, and review fingerprints with scores. Checksums provide consistency checks, not authentication. The product gate still requires independently reviewed provenance, real quality, cost, and latency evidence.
