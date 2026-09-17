@@ -1,0 +1,10 @@
+{
+  "query": "What does a Docker image contain?",
+  "instructions": "Answer briefly.",
+  "documents": [
+    {"id": "a", "source": "guide", "content": "A Docker image contains the application and its dependencies."},
+    {"id": "b", "source": "guide", "content": "A Docker image contains the application and its dependencies."}
+  ],
+  "mode": "conservative",
+  "input_budget": 8000
+}

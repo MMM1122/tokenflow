@@ -1,0 +1,40 @@
+# TokenFlow M1 — benchmark protocol v1
+
+Written before the first measured run. Target: developers sending text, conversation history and retrieved documents to an LLM. Optimize input cost subject to answer quality and latency constraints.
+
+## Dataset and isolation
+
+- 100 synthetic cases: 20 scenario families × 5 context-size variants. Include Q&A, code, documents, Chinese, cross-turn corrections, negation, exact duplicate documents, irrelevant context, and zero-redundancy controls.
+- These are regression fixtures, **not 100 independent real conversations**. Variants within each family are correlated. Do not claim generalization or benchmark wins on real traffic.
+- Fixture labels (`required_context`, answer checks) are evaluation-only. The optimizer receives only the request. Preserve dataset SHA256, configuration and package versions in reports.
+- `dev` families support implementation debugging; `holdout` families support a first smoke check. The synthetic holdout is still authored in this repository, not a sealed external validation set. A shipping decision requires unseen, consented developer traces with independent review.
+- Test conservative and balanced modes against the identical unoptimized serialized request. No unequal prompt wrappers or hidden baseline truncation. Report failures in the denominator; do not exclude difficult cases.
+
+## Measurements
+
+1. Input-token reduction: (before − after) / before; report arithmetic mean, median, weighted aggregate, categories, lengths and modes. Tokenizer counts use the exact canonical serialized messages, **not provider billing tokens**; actual usage is recorded separately online.
+2. Warm optimization overhead: per-case median across 3 runs, plus p50/p95 across cases. Tokenizer initialization/download excluded and reported separately. End-to-end LLM latency only measured in paired online runs.
+3. Protected-content and required-fact retention: deterministic regression checks; **not answer quality**.
+4. Paired answer evaluation: same model/settings, baseline and optimized for each case; seeded randomized execution order to reduce ordering/cache bias; provider failures and incomplete outputs count as failures. Capture input, cached-input and output token usage, duration and task-check scores. No automatic retry that silently changes billing.
+5. Answer-check score: fraction of explicit expected substrings found, with forbidden-answer checks. A narrow diagnostic that can be gamed; **not a general quality-retention score**. Human review must assess correctness, completeness, instruction adherence and factual grounding on 0–4 scales, with blinded left/right answers. Never execute model-generated code for scoring.
+6. Cost: only compute online from user-supplied, dated input/cached-input/output prices. Report full paired experimental cost separately from per-request optimized savings. Output length and provider cache discounts matter. Without prices/real calls, cost and response-latency metrics are null, not inferred from input reduction.
+
+## Predeclared progression gates
+
+- Functional: all protected content preserved byte-for-byte; no prompt grows; budget met or a structured budget error is returned; no silent truncation. Regression suite passes.
+- Engineering target: balanced mode mean input reduction ≥20% on this synthetic suite and warm p95 overhead ≤100 ms on the recorded local machine. These are engineering targets, not evidence of product value.
+- Product gate: real paired model runs and blinded human evaluation on independent traces. Mean optimized quality must be ≥95% of baseline, paired mean normalized-score difference lower 95% confidence bound ≥−0.05, baseline mean ≥0.80, and no critical constraint violation. Bootstrap by independent conversation/family, not the 100 correlated variants. Review subgroup regressions, cost and p95 end-to-end latency before proceeding.
+- **Offline results cannot pass the product gate.** Do not expand into production infrastructure just because a synthetic token-reduction target passed.
+
+## Known corrections to the original plan
+
+- Repeated user instructions may express emphasis or correction. Preserve all conversation messages in M1; safely compressing long histories requires a separate state/constraint evaluation.
+- Default conservative mode only removes byte-identical duplicate document chunks with the same source. Balanced mode additionally uses lexical relevance, near-duplicate filtering and extractive paragraph selection, explicitly accepting potential information loss. Neither is semantic similarity or an LLM summary.
+- Protect explicit `protected` blocks, non-prose formats, numeric/constraint-bearing passages and referenced sources. Heuristics are incomplete: callers must mark facts that must survive.
+- An impossible budget fails explicitly instead of deleting protected instructions. A local estimate is not a provider context-window guarantee.
+- “Explain Docker” and “Explain Docker in Chinese” cannot share an answer cache key. Any future cache must include language, all effective instructions, model/settings, context version and tenant scope.
+- Changes to a cached prompt prefix may reduce provider cache discounts; fewer raw input tokens do not guarantee lower cost.
+
+## Reproduction
+
+See README for commands. Freeze this protocol before running a new real evaluation; report any later changes, don't tune thresholds after seeing results.

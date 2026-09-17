@@ -1,0 +1,16 @@
+# Paired evaluation and quality gate
+
+Validate or falsify actual model quality and cost benefits.
+
+## Acceptance criteria
+
+- [x] Use identical model/settings and seeded randomized baseline/optimized call ordering.
+- [x] Persist each call with usage and latency; include failures and disable automatic retries.
+- [x] Accept explicit prices for cached input and output and separate experimental cost from savings.
+- [x] Export blinded pairs and implement rubrics, family bootstrap, and critical-violation gates.
+- [ ] Configure real model credentials and execute paired live evaluation.
+- [ ] Complete independent blinded review and assess cost and latency on real traces.
+
+Evidence: tokenflow/evaluation.py; tests/test_evaluation.py.
+
+Remaining dependency: independent, consented traces and live model evaluation. Offline proxies and mocked providers do not satisfy this requirement.
