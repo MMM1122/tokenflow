@@ -50,7 +50,7 @@ Include tenant, permissions, effective instructions, language, model/generation 
 
 ## Data handling
 
-Operational metrics retain only the latest 1,000 records in memory and disappear at process exit. Live evaluation directories intentionally contain the full planned requests, labels, model answers, and reviewer inputs. They are explicit experiment artifacts, not content-free operational logs. Use consented, redacted data and exclude live runs from version control.
+Operational metrics retain the latest 1,000 completed route records, including handled failures, with outcome counters that survive event eviction. They disappear at process exit and do not aggregate across workers. Authentication/schema rejections and unfinished operations are outside this route-level metric scope. Provider failure usage remains unknown; raw exception text is excluded. Live evaluation directories intentionally contain the full planned requests, labels, model answers, and reviewer inputs. They are explicit experiment artifacts, not content-free operational logs. Use consented, redacted data and exclude live runs from version control.
 
 ## Repository conventions
 

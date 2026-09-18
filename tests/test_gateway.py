@@ -41,6 +41,15 @@ def test_api_optimize_auth_generation_and_metrics(engine):
     assert "private text" not in metrics.text
     assert "fixture response" not in metrics.text
     assert len(provider.calls) == 1
+    report = metrics.json()
+    assert report["outcome_counts"] == {"generate.success": 1, "optimize.success": 1}
+    assert report["operations_recorded"] == 2
+    assert report["provider_attempts"] == 1
+    event = report["events"][-1]
+    assert event["billing_usage"] == "reported"
+    assert event["provider_input_tokens"] == 42
+    assert event["request_id"] == response.json()["request_id"]
+    assert event["request_id"] == response.headers["X-Request-ID"]
 
 
 def test_impossible_budget_never_reaches_provider(engine):

@@ -115,7 +115,7 @@ answer = client.generate(request)
 print(answer.response.text)
 ```
 
-This is a local development gateway, without production rate limits, persistence, or tenant isolation. Metrics retain the last 1,000 successful operations per process and exclude prompt/answer content. Optimization responses contain context and must be handled as application data. Role separation and JSON wrapping do not guarantee prompt-injection resistance.
+This is a local development gateway, without production rate limits, persistence, or tenant isolation. Metrics retain the last 1,000 completed route operations, including failures, with process-lifetime outcome counters. They exclude prompt/answer content and raw exceptions. Handled route responses include `X-Request-ID` for correlation. See [gateway outcomes and metrics](docs/gateway.md) for coverage and unknown billing semantics. Optimization responses contain context and must be handled as application data. Role separation and JSON wrapping do not guarantee prompt-injection resistance.
 
 ## Development and next milestones
 

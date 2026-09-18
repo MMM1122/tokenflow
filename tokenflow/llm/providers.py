@@ -1,18 +1,26 @@
 from time import perf_counter
 from typing import Protocol
 
-from pydantic import Field
+from pydantic import ConfigDict, Field, model_validator
 
 from tokenflow.models import StrictModel
 
 
 class ProviderResult(StrictModel):
-    text: str
-    model: str
+    model_config = ConfigDict(revalidate_instances="always")
+
+    text: str = Field(min_length=1)
+    model: str = Field(min_length=1)
     input_tokens: int = Field(ge=0)
     cached_input_tokens: int = Field(default=0, ge=0)
     output_tokens: int = Field(ge=0)
-    latency_ms: float = Field(ge=0)
+    latency_ms: float = Field(ge=0, allow_inf_nan=False)
+
+    @model_validator(mode="after")
+    def valid_usage(self):
+        if self.cached_input_tokens > self.input_tokens:
+            raise ValueError("Provider cached tokens cannot exceed input tokens")
+        return self
 
 
 class Provider(Protocol):

@@ -2,12 +2,13 @@
 
 import hmac
 import os
+from time import perf_counter
 
-from fastapi import Depends, FastAPI, Header, HTTPException
+from fastapi import Depends, FastAPI, Header, HTTPException, Response
 
 from tokenflow.core.optimizer import Optimizer
-from tokenflow.llm.providers import OpenAIProvider, Provider
-from tokenflow.metrics.tracker import MetricsTracker
+from tokenflow.llm.providers import OpenAIProvider, Provider, ProviderResult
+from tokenflow.metrics.tracker import MetricsTracker, Operation
 from tokenflow.models import BudgetExceeded, OptimizationRequest
 
 
@@ -31,10 +32,16 @@ def create_app(
         ):
             raise HTTPException(401, "Invalid gateway credentials")
 
-    def optimize_request(request: OptimizationRequest):
+    def elapsed(started: float) -> float:
+        return (perf_counter() - started) * 1000
+
+    def optimize_request(request: OptimizationRequest, operation: Operation, started: float):
         try:
             return engine.optimize(request)
         except BudgetExceeded as exc:
+            request_id = tracker.record(
+                operation=operation, outcome="budget_exceeded", total_latency_ms=elapsed(started)
+            )
             raise HTTPException(
                 422,
                 {
@@ -42,6 +49,14 @@ def create_app(
                     "budget": exc.budget,
                     "minimum_tokens": exc.minimum_tokens,
                 },
+                headers={"X-Request-ID": request_id},
+            ) from None
+        except Exception:
+            request_id = tracker.record(
+                operation=operation, outcome="optimizer_error", total_latency_ms=elapsed(started)
+            )
+            raise HTTPException(
+                500, "Context optimization failed", headers={"X-Request-ID": request_id}
             ) from None
 
     @app.get("/health")
@@ -49,29 +64,56 @@ def create_app(
         return {"status": "ok", "mode": "local_preview", "provider_ready": provider is not None}
 
     @app.post("/v1/optimize")
-    def optimize(request: OptimizationRequest):
+    def optimize(request: OptimizationRequest, http_response: Response):
         # Public local endpoint never invokes a paid provider.
-        result = optimize_request(request)
-        request_id = tracker.record(result)
+        started = perf_counter()
+        result = optimize_request(request, "optimize", started)
+        request_id = tracker.record(
+            result, operation="optimize", outcome="success", total_latency_ms=elapsed(started)
+        )
+        http_response.headers["X-Request-ID"] = request_id
         return {"request_id": request_id, **result.model_dump()}
 
     @app.post("/v1/generate", dependencies=[Depends(authenticate)])
-    def generate(request: OptimizationRequest):
+    def generate(request: OptimizationRequest, http_response: Response):
+        started = perf_counter()
         if provider is None:
-            raise HTTPException(503, "Configure OPENAI_API_KEY and OPENAI_MODEL")
-        optimized = optimize_request(request)
+            request_id = tracker.record(
+                operation="generate",
+                outcome="provider_unavailable",
+                total_latency_ms=elapsed(started),
+            )
+            raise HTTPException(
+                503,
+                "Configure OPENAI_API_KEY and OPENAI_MODEL",
+                headers={"X-Request-ID": request_id},
+            )
+        optimized = optimize_request(request, "generate", started)
         try:
-            response = provider.generate(optimized.messages)
+            response = ProviderResult.model_validate(provider.generate(optimized.messages))
         except Exception:
-            # Upstream exception text can contain prompts, credentials or account data.
-            raise HTTPException(502, "Upstream generation failed; no response returned") from None
+            # Upstream exceptions and validation errors can contain private data.
+            request_id = tracker.record(
+                optimized,
+                operation="generate",
+                outcome="provider_error",
+                total_latency_ms=elapsed(started),
+                provider_attempted=True,
+            )
+            raise HTTPException(
+                502,
+                "Upstream generation failed; no response returned",
+                headers={"X-Request-ID": request_id},
+            ) from None
         request_id = tracker.record(
             optimized,
-            provider_input_tokens=response.input_tokens,
-            provider_cached_input_tokens=response.cached_input_tokens,
-            provider_output_tokens=response.output_tokens,
-            provider_latency_ms=response.latency_ms,
+            operation="generate",
+            outcome="success",
+            total_latency_ms=elapsed(started),
+            provider_attempted=True,
+            response=response,
         )
+        http_response.headers["X-Request-ID"] = request_id
         return {
             "request_id": request_id,
             "response": response.model_dump(),
@@ -80,6 +122,6 @@ def create_app(
 
     @app.get("/v1/metrics", dependencies=[Depends(authenticate)])
     def metrics():
-        return {"scope": "bounded_single_process_history", "events": tracker.snapshot()}
+        return tracker.report()
 
     return app

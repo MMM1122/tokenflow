@@ -4,7 +4,7 @@ M1 offline engineering and an M2 local integration preview are implemented. The 
 
 ## Verified locally
 
-- 105 pytest tests pass; Ruff lint and formatting checks pass.
+- 118 pytest tests pass; Ruff lint and formatting checks pass.
 - Editable package installation and the installed `tokenflow` CLI work.
 - A real uvicorn loopback smoke test returned HTTP 200 from health and optimization endpoints. The example input decreased from 121 to 103 estimated tokens, retaining one of two identical documents.
 - The smoke-test server was shut down afterward. No real model calls were made.
@@ -33,6 +33,12 @@ The initial run measured 37.81% mean input reduction in conservative mode and 41
 All annotated required context and protected content survived, and zero-redundancy controls saved zero tokens. Counts are actual BPE measurements of local serialization, not provider billing tokens. High duplicate density limits generalization; retaining fixture labels does not prove answer quality. Weighted aggregate reduction and mean per-request reduction are different statistics and are both reported.
 
 Lossy processing added only about 3.35 percentage points of mean reduction on this suite. Keep conservative mode as the default and prioritize real quality evaluation. These measurements support another experiment, not a claim of proven product value.
+
+## Gateway failure reporting update
+
+Local route metrics now record success, budget rejection, optimizer failure, unavailable provider, and failed provider attempts. The bounded event history includes failures, while process-lifetime counters preserve completed outcome totals after event eviction. Handled route responses include a correlated X-Request-ID. Authentication and schema rejections remain outside the explicitly documented route-level scope.
+
+Provider failures record unknown billing usage rather than zero tokens; invalid provider usage or nonfinite latency becomes a sanitized 502 response. No raw prompts, answers, or exception messages enter metrics. Thirteen additional tests cover correlation, failure accounting, malformed results, eviction, concurrent recording, and privacy. A real ephemeral loopback HTTP smoke test returned 200, 502, and 422 with matching outcome counters and request IDs; it used a test provider, made no model calls, and shut down afterward.
 
 ## Remaining work and reasons
 
