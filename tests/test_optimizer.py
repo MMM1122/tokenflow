@@ -135,7 +135,7 @@ def test_near_duplication_is_opt_in_and_flagged_lossy(engine):
     content = (
         "A Docker image packages the application and its dependencies for portable deployment."
     )
-    documents = (doc(content=content), doc("b", content=content + "."))
+    documents = (doc(content=content), doc("b", content=content.replace(" ", "  ")))
     request = OptimizationRequest(query="Explain images", documents=documents)
     assert len(engine.optimize(request).documents) == 2
     balanced = engine.optimize(request.model_copy(update={"mode": "balanced"}))
@@ -190,7 +190,7 @@ def test_no_redundancy_no_savings_and_repeatable_output(engine):
     assert first.decisions == second.decisions
 
 
-def test_large_near_duplicate_comparison_is_skipped(engine):
+def test_large_document_punctuation_difference_is_retained(engine):
     content = "Docker image packaging for portable applications. " * 100
     request = OptimizationRequest(
         query="Docker",

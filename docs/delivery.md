@@ -4,11 +4,11 @@ M1 offline engineering and an M2 local integration preview are implemented. The 
 
 ## Verified locally
 
-- 87 pytest tests pass; Ruff lint and formatting checks pass.
+- 105 pytest tests pass; Ruff lint and formatting checks pass.
 - Editable package installation and the installed `tokenflow` CLI work.
 - A real uvicorn loopback smoke test returned HTTP 200 from health and optimization endpoints. The example input decreased from 121 to 103 estimated tokens, retaining one of two identical documents.
 - The smoke-test server was shut down afterward. No real model calls were made.
-- The offline benchmark covers 100 synthetic cases from 20 families, measured three times per mode and case. See benchmarks/results/m1-offline/ for the latest complete results.
+- The offline benchmark covers 100 synthetic cases from 20 families, measured three times per mode and case. See benchmarks/results/m1-preservation-v2/ for the latest complete results and benchmarks/results/m1-offline/ for the original baseline.
 
 ## Evaluation reliability update
 
@@ -19,6 +19,12 @@ The no-call preflight validates the entire dataset and estimates both evaluation
 The dataset audit reports 92 distinct baseline inputs among 100 cases in 20 declared families. The no-document and no-redundancy control families each repeat an identical input five times. No exact cross-family or cross-split input duplication was detected. The original fixture and benchmark measurements are preserved; automated inspection cannot establish independent provenance.
 
 Blinded scoring now verifies immutable pair content, family assignment, answer mappings, and summary values against the saved plan and checksummed journal. Results include dataset, plan, and review fingerprints. Tests reject altered evidence and verify that even perfect test-double scores leave the independent-data product gate pending. No live evaluation evidence was added.
+
+## Optimizer preservation update
+
+Reproduced two balanced-mode context-loss failures: a long shared preamble let character similarity merge reversed approval roles, and a tight budget could discard a sentence starting with "No". Near-duplicate filtering now accepts horizontal whitespace differences only; it preserves word order, case, punctuation, and line boundaries. The constraint heuristic now recognizes no/neither/nor and common negative contractions with straight or typographic apostrophes. Explicit protection remains necessary for constraints outside these heuristics.
+
+Eighteen adversarial regressions cover role reversal, changed factual state, question punctuation, comparison operators, capitalization, negations under tight budgets, whitespace retention, paragraph boundaries, and structured formats. The unchanged 100-case suite still measures 37.81% conservative and 41.16% balanced mean input reduction, with zero fixture failures. Warm p95 overhead in this local run was 2.77 ms and 2.97 ms respectively. The old benchmark did not expose the demonstrated failures; unchanged token savings are not proof of general quality. Original results remain intact.
 
 ## Interpretation
 

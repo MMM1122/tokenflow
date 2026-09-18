@@ -56,3 +56,11 @@ Added before any live evaluation. The original quality thresholds, fixture label
 Added before any live evaluation; acceptance thresholds remain unchanged. A mechanical dataset audit now distinguishes case count, declared family count, and distinct rendered baseline inputs. The original synthetic suite contains 92 distinct inputs: two control families each contain five identical variants. Preserve and disclose these controls; do not count them as independent evidence. No exact duplicate inputs span families or splits in this fixture. Exact matching cannot prove independence or detect all shared origins.
 
 Before scoring, verify the immutable reviewed content and blinded mapping against the persisted plan and checksummed attempt records, and recompute the run summary. Reject changed answers, requests, family assignments, keys, or mismatched summaries. Sort families before seeded bootstrap so row reordering does not change the calculation. Record dataset, plan, and review fingerprints with scores. Checksums provide consistency checks, not authentication. The product gate still requires independently reviewed provenance, real quality, cost, and latency evidence.
+
+## Preservation amendment: near duplicates and negations
+
+Added after reproducing failures on inputs outside the original synthetic suite and before live quality evaluation. A shared preamble can make reversed actor/recipient roles exceed the old lexical similarity threshold. Near-duplicate removal now requires identical text after collapsing horizontal spaces/tabs only, within the same source and format. Preserve word order, case, punctuation, and line/paragraph boundaries; keep the action opt-in and marked lossy. Do not claim semantic equivalence.
+
+Extend heuristic protection to no/neither/nor and common negative contractions, including typographic apostrophes. If these constraints cannot fit, fail the budget explicitly. This does not make the heuristic complete or eliminate the need for caller-protected evidence.
+
+Keep the original 100 cases and acceptance thresholds unchanged. Add 18 targeted adversarial regressions separately and publish the remeasurement under benchmarks/results/m1-preservation-v2/. The unchanged fixture token reduction demonstrates its coverage gap, not independently validated answer quality.

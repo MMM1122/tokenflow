@@ -42,7 +42,7 @@ print(result.metrics)
 print(result.decisions)
 ```
 
-Every action has a reason. Conservative mode removes only byte-identical, same-source, unprotected document duplicates. Repeated user turns can express emphasis or corrections, so M1 retains the entire conversation. Mark essential evidence with `protected=True`; declare code, JSON, and tables with `format`. Balanced mode explicitly permits information loss.
+Every action has a reason. Conservative mode removes only byte-identical, same-source, unprotected document duplicates. Repeated user turns can express emphasis or corrections, so M1 retains the entire conversation. Mark essential evidence with `protected=True`; declare code, JSON, and tables with `format`. Balanced mode explicitly permits information loss. Its near-duplicate rule now accepts only horizontal whitespace differences within the same source; word order, case, punctuation, and paragraph changes remain distinct. Common negations receive heuristic protection, but essential evidence should still be explicitly pinned.
 
 Documents represent a set of retrieved evidence. When occurrence counts matter, pin the affected chunks. Internal document IDs support auditing; model citations use `source`.
 
@@ -58,7 +58,7 @@ tokenflow benchmark benchmarks/synthetic-v1.jsonl --output benchmarks/runs/offli
 
 The suite contains 100 synthetic cases from 20 scenario families with five context-size variants each, not 100 independent real conversations. It covers question answering, code, documents, multilingual input, corrections, constraints, long histories, and zero-redundancy controls. Multilingual test payloads use Unicode escapes in source and fixture files; all project prose is English. The [dataset audit](benchmarks/results/m1-offline/dataset-audit.json) identifies 92 distinct baseline inputs: each of the two no-document/no-redundancy control families repeats one input five times. No exact cross-family or cross-split input duplicates were found. These controls remain in the original suite; they are not independent observations.
 
-See the [measured results](benchmarks/results/m1-offline/SUMMARY.md), [per-case data](benchmarks/results/m1-offline/offline.json), and [predeclared protocol](docs/benchmark-protocol.md). High duplicate density favors deduplication. Required-fact retention is not answer quality. Offline quality, cost, and model-latency fields remain `null`.
+See the [latest measured results](benchmarks/results/m1-preservation-v2/SUMMARY.md), [per-case data](benchmarks/results/m1-preservation-v2/offline.json), [original baseline](benchmarks/results/m1-offline/SUMMARY.md), and [predeclared protocol](docs/benchmark-protocol.md). High duplicate density favors deduplication. Required-fact retention is not answer quality. Offline quality, cost, and model-latency fields remain `null`.
 
 ## Paired live evaluation
 

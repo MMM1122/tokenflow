@@ -1,7 +1,13 @@
-from difflib import SequenceMatcher
+import re
 
-from tokenflow.core.relevance import terms
 from tokenflow.models import Decision, Document
+
+HORIZONTAL_WHITESPACE = re.compile(r"[ \t]+")
+
+
+def whitespace_key(doc: Document) -> tuple[str, str, str]:
+    # Preserve word order, case, punctuation, and every line/paragraph boundary.
+    return doc.source, doc.format, HORIZONTAL_WHITESPACE.sub(" ", doc.content)
 
 
 def deduplicate(
@@ -10,13 +16,15 @@ def deduplicate(
     kept: list[Document] = []
     decisions: list[Decision] = []
     exact: dict[tuple[str, str, str], Document] = {}
-    comparisons_left = 64
+    whitespace: dict[tuple[str, str, str], Document] = {}
     for doc in docs:
         key = (doc.source, doc.format, doc.content)
         previous = exact.get(key)
         if doc.id in protected:
             kept.append(doc)
             exact.setdefault(key, doc)
+            if near:
+                whitespace.setdefault(whitespace_key(doc), doc)
             continue
         if previous:
             decisions.append(
@@ -28,38 +36,21 @@ def deduplicate(
                 )
             )
             continue
-        # Bounded by request's 200-document limit. Order/negation-sensitive lexical
-        # matching is opt-in and still lossy, never advertised as semantic equivalence.
-        match = None
-        # Bound character alignment work. Large chunks still get exact deduplication;
-        # skipping an expensive approximate comparison retains more context safely.
-        if near and len(doc.content) <= 1024:
-            tokens = terms(doc.content)
-            for old in kept:
-                if old.source != doc.source or old.format != doc.format:
-                    continue
-                if len(old.content) > 1024 or comparisons_left <= 0:
-                    continue
-                other = terms(old.content)
-                similarity = len(tokens & other) / max(1, len(tokens | other))
-                comparisons_left -= 1
-                if (
-                    similarity >= 0.95
-                    and SequenceMatcher(None, old.content, doc.content, autojunk=False).ratio()
-                    >= 0.98
-                ):
-                    match = old
-                    break
+        # High lexical similarity is insufficient: a tiny edit can reverse a fact.
+        # Only horizontal whitespace may differ, and callers still opt into loss.
+        match = whitespace.get(whitespace_key(doc)) if near else None
         if match:
             decisions.append(
                 Decision(
                     document_id=doc.id,
                     action="remove_near",
-                    reason="opt_in_lexical_near_duplicate",
+                    reason="opt_in_horizontal_whitespace_duplicate",
                     retained_document_id=match.id,
                 )
             )
         else:
             kept.append(doc)
             exact[key] = doc
+            if near:
+                whitespace.setdefault(whitespace_key(doc), doc)
     return kept, decisions

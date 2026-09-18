@@ -29,7 +29,7 @@ Documents are retrieved evidence, where repeated same-source chunks normally hav
 
 Conservative mode removes only byte-identical, same-source, unprotected document duplicates. Even without dropping distinct information, stochastic model answers need not be identical.
 
-Balanced mode permits lossy lexical near-duplicate filtering and paragraph selection. When needed, the budget stage drops unprotected documents using relevance, position-based recency, and caller importance. Recency assumes oldest-to-newest input order; it is not a verified timestamp. Approximate deduplication never crosses sources and has explicit comparison/length bounds.
+Balanced mode permits same-source horizontal-whitespace duplicate removal and lossy paragraph selection. Near-duplicate matching preserves word order, case, punctuation, and line/paragraph boundaries; high lexical similarity alone is insufficient. When needed, the budget stage drops unprotected documents using relevance, position-based recency, and caller importance. Recency assumes oldest-to-newest input order; it is not a verified timestamp. Whitespace duplicate matching uses normalized lookup keys rather than pairwise character alignment and remains subject to the request size limits. It is still marked lossy because spacing can carry meaning in prose. Structured formats and protected documents are preserved.
 
 All history roles, ordering, and content are preserved. Instructions and the current query are protected separately. Role separation and JSON wrappers are not a prompt-injection defense guarantee.
 
